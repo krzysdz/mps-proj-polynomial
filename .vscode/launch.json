@@ -1,0 +1,66 @@
+{
+    /*
+     * Requires the Rust Language Server (RLS) and Cortex-Debug extensions
+     * https://marketplace.visualstudio.com/items?itemName=rust-lang.rust
+     * https://marketplace.visualstudio.com/items?itemName=marus25.cortex-debug
+     */
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "(Windows) Launch",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/target/debug/a.exe",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${fileDirname}",
+            "environment": [],
+            "console": "integratedTerminal",
+            "sourceFileMap": {
+                "c:\\rustc\\f1edd0429582dd29cccacaf50fd134b05593bd9c": "${env:HOME}${env:USERPROFILE}\\.rustup\\toolchains\\stable-x86_64-pc-windows-msvc\\lib\\rustlib\\src\\rust"
+            }
+        },
+        {
+            "type": "cortex-debug",
+            "request": "launch",
+            "name": "Debug (QEMU)",
+            "servertype": "qemu",
+            "cwd": "${workspaceRoot}",
+            "preLaunchTask": "Cargo Build (debug)",
+            "runToMain": true,
+            "executable": "./target/thumbv7m-none-eabi/debug/mps-proj-polynomial",
+            /* Run `cargo build --example hello` and uncomment this line to run semi-hosting example */
+            //"executable": "./target/thumbv7m-none-eabi/debug/examples/hello",
+            "cpu": "cortex-m3",
+            "machine": "lm3s6965evb",
+        },
+        {
+            /* Configuration for the STM32F303 Discovery board */
+            "type": "cortex-debug",
+            "request": "launch",
+            "name": "Debug (OpenOCD)",
+            "servertype": "openocd",
+            "cwd": "${workspaceRoot}",
+            "preLaunchTask": "Cargo Build (debug)",
+            "runToMain": true,
+            "executable": "./target/thumbv7em-none-eabihf/debug/mps-proj-polynomial",
+            /* Run `cargo build --example itm` and uncomment this line to run itm example */
+            // "executable": "./target/thumbv7em-none-eabihf/debug/examples/itm",
+            "device": "STM32F107VCT6",
+            "configFiles": [
+                "interface/stlink-v2-1.cfg",
+                "target/stm32f1x.cfg"
+            ],
+            "svdFile": "${workspaceRoot}/.vscode/STM32F107.svd",
+            "swoConfig": {
+                "enabled": true,
+                "cpuFrequency": 8000000,
+                "swoFrequency": 2000000,
+                "source": "probe",
+                "decoders": [
+                    { "type": "console", "label": "ITM", "port": 0 }
+                ]
+            }
+        }
+    ]
+}

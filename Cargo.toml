@@ -1,0 +1,44 @@
+[package]
+authors = ["krzysdz <krzysdz@users.noreply.github.com>"]
+edition = "2021"
+readme = "README.md"
+name = "mps-proj-polynomial"
+version = "0.1.0"
+
+[dependencies]
+cortex-m = "0.7.4"
+cortex-m-rt = "0.7.1"
+cortex-m-semihosting = "0.3.3"
+panic-halt = "0.2.0"
+embedded-sdmmc = "0.3.0"
+embedded-hal = "0.2.6"
+
+# Uncomment for the panic example.
+# panic-itm = "0.4.1"
+
+# Uncomment for the allocator example.
+# alloc-cortex-m = "0.4.0"
+
+# Reexported as stm32f1xx_hal::pac
+# [dependencies.stm32f1]
+# features = ["stm32f107", "rt"]
+# version = "0.14.0"
+
+[dependencies.stm32f1xx-hal]
+version = "0.8.0"
+features = ["rt", "stm32f103"]
+
+[dependencies.num]
+version = "0.4"
+default-features = false
+
+# this lets you use `cargo fix`!
+[[bin]]
+name = "mps-proj-polynomial"
+test = false
+bench = false
+
+[profile.release]
+codegen-units = 1 # better optimizations
+debug = true # symbols are nice and they don't increase the size on Flash
+lto = true # better optimizations
