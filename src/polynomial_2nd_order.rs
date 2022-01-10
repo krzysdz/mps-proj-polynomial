@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use core::ops::Mul;
 
 use num::{Complex, Num, Zero};
@@ -30,6 +31,10 @@ impl<T: Num + Mul<f32, Output = T> + Copy> Polynomial2ndOrder<T> {
 
     pub fn equation_unsolvable(&self) -> bool {
         self.a.is_zero() && self.b.is_zero() && !self.c.is_zero()
+    }
+
+    pub fn infinitely_many_solutions(&self) -> bool {
+        self.a.is_zero() && self.b.is_zero() && self.c.is_zero()
     }
 }
 

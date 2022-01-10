@@ -5,6 +5,11 @@ readme = "README.md"
 name = "mps-proj-polynomial"
 version = "0.1.0"
 
+[features]
+# analytical solution requires sqrt, which is not available in core, use libm
+# https://github.com/rust-lang/rfcs/issues/2505
+analytical = ["num/libm"]
+
 [dependencies]
 cortex-m = "0.7.4"
 cortex-m-rt = "0.7.1"
