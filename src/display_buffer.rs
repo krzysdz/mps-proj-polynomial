@@ -1,19 +1,10 @@
 #![allow(dead_code)]
 use core::fmt::Write;
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct DisplayBuffer {
     buff: [u8; 32],
     offset: usize,
-}
-
-impl Default for DisplayBuffer {
-    fn default() -> Self {
-        DisplayBuffer {
-            buff: [0; 32],
-            offset: 0,
-        }
-    }
 }
 
 // Modified https://stackoverflow.com/a/39491059
@@ -44,7 +35,7 @@ impl DisplayBuffer {
     }
 
     fn get_line(&self, lineno: usize) -> &[u8] {
-        let startpos = 16*lineno;
+        let startpos = 16 * lineno;
         let buff = &self.buff[startpos..];
         let pos = buff.iter().position(|&c| c == 0);
         let pos = match pos {
@@ -57,7 +48,8 @@ impl DisplayBuffer {
             }
             None => 16,
         };
-        &buff[0..pos]}
+        &buff[0..pos]
+    }
 
     pub fn first_line(&self) -> &[u8] {
         self.get_line(0)

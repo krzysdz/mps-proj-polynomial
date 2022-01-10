@@ -39,7 +39,7 @@ const MODE: SPIMode = SPIMode {
     phase: Phase::CaptureOnSecondTransition,
     polarity: Polarity::IdleHigh,
 };
-const FILE_NAME: &'static str = "MPS_RES.TXT";
+const FILE_NAME: &str = "MPS_RES.TXT";
 
 struct Clock;
 impl TimeSource for Clock {
@@ -91,7 +91,7 @@ fn SysTick() {
     } else {
         cortex_m::interrupt::free(|cs| {
             PORTS.replace(INPUT_PORTS.borrow(cs).replace(None).unwrap());
-            if let None = LED {
+            if LED.is_none() {
                 LED.replace(LEDS.borrow(cs).replace(None).unwrap());
             }
         });
