@@ -4,6 +4,14 @@
 #![no_std]
 #![no_main]
 
+#[macro_use]
+extern crate static_assertions;
+
+assert_cfg!(
+    not(all(feature = "panic-semihosting", feature = "panic-itm")),
+    "Only one panic handler may be specified"
+);
+
 // mod complex;
 mod display_buffer;
 mod io;
@@ -23,7 +31,12 @@ use num::complex::Complex32;
 use num::Complex;
 #[cfg(feature = "analytical")]
 use num::Float;
+#[cfg(not(any(feature = "panic-semihosting", feature = "panic-itm")))]
 use panic_halt as _;
+#[cfg(feature = "panic-itm")]
+use panic_itm as _;
+#[cfg(feature = "panic-semihosting")]
+use panic_semihosting as _;
 use polynomial_2nd_order::Polynomial2ndOrder;
 use sdmmc::{BlockDevice, TimeSource, Timestamp, Volume};
 use stm32f1xx_hal::device::{AFIO, FLASH, GPIOA, RCC};
@@ -155,15 +168,10 @@ fn main() -> ! {
         *LEDS.borrow(cs).borrow_mut() = Some(LEDStruct { led1, led2 });
     });
 
-    // configure the system timer to wrap around every second
-    syst.set_clock_source(SystClkSource::Core);
-    syst.set_reload(8_000_000); // 1s
-    syst.clear_current();
-    syst.enable_counter();
-    syst.enable_interrupt();
-
     let (spi, cs) = setup_spi(dp.FLASH, dp.RCC, dp.AFIO, dp.GPIOA, dp.SPI1);
-    let mut cont = sdmmc::Controller::new(sdmmc::SdMmcSpi::new(spi, cs), Clock); // get FS controller
+    let mut spi_dev = sdmmc::SdMmcSpi::new(spi, cs);
+    spi_dev.init().unwrap();
+    let mut cont = sdmmc::Controller::new(spi_dev, Clock); // get FS controller
     let mut volume = cont.get_volume(sdmmc::VolumeIdx(0)).unwrap(); // halt on error
     let root_dir = cont.open_root_dir(&volume).unwrap();
     let mut file = cont
@@ -174,6 +182,13 @@ fn main() -> ! {
             sdmmc::Mode::ReadWriteCreateOrAppend,
         )
         .unwrap();
+
+    // configure the system timer to wrap around every second
+    syst.set_clock_source(SystClkSource::Core);
+    syst.set_reload(8_000_000); // 1s
+    syst.clear_current();
+    syst.enable_counter();
+    syst.enable_interrupt();
 
     loop {
         // Make sure that no interrupts occur when reading the data - CRITICAL SECTION
@@ -199,6 +214,7 @@ fn main() -> ! {
             write_result(results, &mut buffer);
             write_output(&buffer, &mut cont, &mut volume, &mut file);
         }
+        // TODO: check if wfi() can be called here and whether SysTick wakes up from sleep
     }
 }
 
@@ -287,10 +303,12 @@ fn write_output<D, T>(
     T: TimeSource,
     <D as BlockDevice>::Error: core::fmt::Debug,
 {
-    cont.write(volume, file, buffer.first_line()).unwrap();
-    cont.write(volume, file, b"\n").unwrap();
-    cont.write(volume, file, buffer.second_line()).unwrap();
-    cont.write(volume, file, b"\n\n").unwrap();
+    cortex_m::interrupt::free(|_| {
+        cont.write(volume, file, buffer.first_line()).unwrap();
+        cont.write(volume, file, b"\n").unwrap();
+        cont.write(volume, file, buffer.second_line()).unwrap();
+        cont.write(volume, file, b"\n\n").unwrap();
+    });
 }
 
 #[cfg(test)]

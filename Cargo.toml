@@ -9,14 +9,19 @@ version = "0.1.0"
 # analytical solution requires sqrt, which is not available in core, use libm
 # https://github.com/rust-lang/rfcs/issues/2505
 analytical = ["num/libm"]
+rust-gpio = []
 
 [dependencies]
 cortex-m = "0.7.4"
 cortex-m-rt = "0.7.1"
 cortex-m-semihosting = "0.3.3"
 panic-halt = "0.2.0"
+panic-semihosting = { version = "0.5.6", optional = true }
+panic-itm = { version = "0.4.2", optional = true }
 embedded-sdmmc = "0.3.0"
 embedded-hal = "0.2.6"
+static_assertions = "1.1.0"
+cfg-if = "1.0"
 
 # Uncomment for the panic example.
 # panic-itm = "0.4.1"
