@@ -20,6 +20,7 @@ mod polynomial_2nd_order;
 use core::cell::RefCell;
 use core::fmt::Write;
 use core::sync::atomic::{AtomicBool, AtomicU32, AtomicU8, Ordering};
+use cortex_m::asm::wfi;
 use cortex_m::interrupt::Mutex;
 use cortex_m::peripheral::syst::SystClkSource;
 use cortex_m_rt::{entry, exception};
@@ -214,7 +215,7 @@ fn main() -> ! {
             write_result(results, &mut buffer);
             write_output(&buffer, &mut cont, &mut volume, &mut file);
         }
-        // TODO: check if wfi() can be called here and whether SysTick wakes up from sleep
+        wfi(); // wait for interrupt (put to sleep)
     }
 }
 
@@ -303,12 +304,17 @@ fn write_output<D, T>(
     T: TimeSource,
     <D as BlockDevice>::Error: core::fmt::Debug,
 {
-    cortex_m::interrupt::free(|_| {
-        cont.write(volume, file, buffer.first_line()).unwrap();
-        cont.write(volume, file, b"\n").unwrap();
-        cont.write(volume, file, buffer.second_line()).unwrap();
-        cont.write(volume, file, b"\n\n").unwrap();
-    });
+    let mut to_write = [0_u8; 35];
+    let first_line = buffer.first_line();
+    let second_line = buffer.second_line();
+    let first_line_len = first_line.len();
+    to_write[0..first_line_len].copy_from_slice(first_line);
+    to_write[first_line_len] = 0xA; // 0xA = 10 = '\n'
+    let second_line_start = first_line_len + 1;
+    let second_line_end = second_line_start + second_line.len();
+    to_write[second_line_start..second_line_end].copy_from_slice(second_line);
+    to_write[second_line_end..second_line_end + 2].copy_from_slice(b"\n\n");
+    cont.write(volume, file, &to_write).unwrap(); // write at once
 }
 
 #[cfg(test)]
