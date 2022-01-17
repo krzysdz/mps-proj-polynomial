@@ -16,7 +16,9 @@ assert_cfg!(
 mod display_buffer;
 mod io;
 mod polynomial_2nd_order;
+mod rtc_source;
 
+use chrono::{DateTime, NaiveDate, Utc};
 use core::cell::RefCell;
 use core::fmt::Write;
 use core::sync::atomic::{AtomicBool, AtomicU32, AtomicU8, Ordering};
@@ -39,13 +41,20 @@ use panic_itm as _;
 #[cfg(feature = "panic-semihosting")]
 use panic_semihosting as _;
 use polynomial_2nd_order::Polynomial2ndOrder;
-use sdmmc::{BlockDevice, TimeSource, Timestamp, Volume};
-use stm32f1xx_hal::device::{AFIO, FLASH, GPIOA, RCC};
-use stm32f1xx_hal::gpio::gpiob::{PB0, PB1};
+use rtc_source::RTCSource;
+use sdmmc::{BlockDevice, TimeSource, Volume};
+use stm32f1xx_hal::rcc::Clocks;
 use stm32f1xx_hal::{
-    gpio::{self, gpioa::PA4, PushPull},
+    device::{AFIO, GPIOA},
+    gpio::{
+        self,
+        gpioa::PA4,
+        gpiob::{PB0, PB1},
+        PushPull,
+    },
     pac::{CorePeripherals, Peripherals, SPI1},
     prelude::*,
+    rtc::{Rtc, RtcClkLsi},
     spi::{self, Spi, Spi1NoRemap},
 };
 
@@ -54,20 +63,6 @@ const MODE: SPIMode = SPIMode {
     polarity: Polarity::IdleHigh,
 };
 const FILE_NAME: &str = "MPS_RES.TXT";
-
-struct Clock;
-impl TimeSource for Clock {
-    fn get_timestamp(&self) -> Timestamp {
-        Timestamp {
-            year_since_1970: 52,
-            zero_indexed_month: 0,
-            zero_indexed_day: 9,
-            hours: 12,
-            minutes: 30,
-            seconds: 0,
-        }
-    }
-}
 
 struct LEDStruct {
     led1: PB0<gpio::Output<PushPull>>,
@@ -115,20 +110,14 @@ fn SysTick() {
 // MISO, CLK, MOSI = PA{5,6,7} (SPI1); CS = PA4
 #[allow(non_snake_case)]
 fn setup_spi(
-    FLASH: FLASH,
-    RCC: RCC,
     AFIO: AFIO,
     GPIOA: GPIOA,
     SPI1: SPI1,
+    clocks: Clocks,
 ) -> (
     Spi<SPI1, Spi1NoRemap, impl spi::Pins<Spi1NoRemap>, u8>,
     PA4<gpio::Output<PushPull>>,
 ) {
-    let mut flash = FLASH.constrain();
-    let rcc = RCC.constrain();
-
-    let clocks = rcc.cfgr.freeze(&mut flash.acr);
-
     let mut afio = AFIO.constrain();
     let mut gpioa = GPIOA.split();
 
@@ -157,6 +146,13 @@ fn main() -> ! {
     let dp = Peripherals::take().unwrap();
     let p = CorePeripherals::take().unwrap();
     let mut syst = p.SYST;
+    let mut pwr = dp.PWR;
+    let rcc = dp.RCC.constrain();
+    let mut backup_domain = rcc.bkp.constrain(dp.BKP, &mut pwr);
+    let rtc = Rtc::<RtcClkLsi>::rtc(dp.RTC, &mut backup_domain);
+    let mut flash = dp.FLASH.constrain();
+    let cfgr = rcc.cfgr;
+    let clocks = cfgr.freeze(&mut flash.acr);
 
     let mut gpiob = dp.GPIOB.split();
     let led1 = gpiob.pb0;
@@ -169,10 +165,16 @@ fn main() -> ! {
         *LEDS.borrow(cs).borrow_mut() = Some(LEDStruct { led1, led2 });
     });
 
-    let (spi, cs) = setup_spi(dp.FLASH, dp.RCC, dp.AFIO, dp.GPIOA, dp.SPI1);
+    let mut timesource = RTCSource::new(rtc);
+    if cfg!(feature = "set-date") {
+        let datetime =
+            DateTime::<Utc>::from_utc(NaiveDate::from_ymd(2022, 1, 17).and_hms(2, 21, 35), Utc);
+        timesource.set_date(datetime);
+    }
+    let (spi, cs) = setup_spi(dp.AFIO, dp.GPIOA, dp.SPI1, clocks);
     let mut spi_dev = sdmmc::SdMmcSpi::new(spi, cs);
     spi_dev.init().unwrap();
-    let mut cont = sdmmc::Controller::new(spi_dev, Clock); // get FS controller
+    let mut cont = sdmmc::Controller::new(spi_dev, timesource); // get FS controller
     let mut volume = cont.get_volume(sdmmc::VolumeIdx(0)).unwrap(); // halt on error
     let root_dir = cont.open_root_dir(&volume).unwrap();
     let mut file = cont
@@ -186,7 +188,7 @@ fn main() -> ! {
 
     // configure the system timer to wrap around every second
     syst.set_clock_source(SystClkSource::Core);
-    syst.set_reload(8_000_000); // 1s
+    syst.set_reload(clocks.sysclk().0); // 1s (core clock is 8 MHz)
     syst.clear_current();
     syst.enable_counter();
     syst.enable_interrupt();
@@ -312,9 +314,10 @@ fn write_output<D, T>(
     to_write[first_line_len] = 0xA; // 0xA = 10 = '\n'
     let second_line_start = first_line_len + 1;
     let second_line_end = second_line_start + second_line.len();
+    let msg_end = second_line_end + 2;
     to_write[second_line_start..second_line_end].copy_from_slice(second_line);
-    to_write[second_line_end..second_line_end + 2].copy_from_slice(b"\n\n");
-    cont.write(volume, file, &to_write).unwrap(); // write at once
+    to_write[second_line_end..msg_end].copy_from_slice(b"\n\n");
+    cont.write(volume, file, &to_write[0..msg_end]).unwrap(); // write at once
 }
 
 #[cfg(test)]

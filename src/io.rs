@@ -3,7 +3,7 @@ use core::sync::atomic::{AtomicU32, AtomicU8, Ordering};
 #[allow(unused_imports)]
 use stm32f1xx_hal::{
     device::{GPIOD, GPIOE, RCC},
-    gpio::{gpiod, gpioe, Cr, Floating, Input, PullUp, CRH, CRL, GpioExt},
+    gpio::{gpiod, gpioe, Cr, Floating, GpioExt, Input, PullUp, CRH, CRL},
 };
 
 // a = PD0-7

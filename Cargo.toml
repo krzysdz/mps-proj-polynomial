@@ -10,6 +10,7 @@ version = "0.1.0"
 # https://github.com/rust-lang/rfcs/issues/2505
 analytical = ["num/libm"]
 rust-gpio = []
+set-date = []
 
 [dependencies]
 cortex-m = "0.7.4"
@@ -39,6 +40,10 @@ version = "0.8.0"
 features = ["rt", "stm32f107"]
 
 [dependencies.num]
+version = "0.4"
+default-features = false
+
+[dependencies.chrono]
 version = "0.4"
 default-features = false
 
