@@ -201,7 +201,7 @@ impl InputPorts {
             Ok(bn) => {
                 a.fetch_or(a_byte << (bn * 8), Ordering::Release);
                 b.fetch_or(b_byte << (bn * 8), Ordering::Release);
-                c.fetch_or(b_byte << (bn * 8), Ordering::Release);
+                c.fetch_or(c_byte << (bn * 8), Ordering::Release);
             }
             _ => panic!(), // Some is always returned, so Err should not be possible
         };
