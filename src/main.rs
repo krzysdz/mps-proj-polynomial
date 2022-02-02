@@ -15,7 +15,7 @@ assert_cfg!(
 // mod complex;
 mod display_buffer;
 mod io;
-mod polynomial_2nd_order;
+mod polynomial_2nd_degree;
 mod rtc_source;
 
 use chrono::{DateTime, NaiveDate, Utc};
@@ -34,13 +34,14 @@ use num::complex::Complex32;
 use num::Complex;
 #[cfg(feature = "analytical")]
 use num::Float;
+use num::Zero;
 #[cfg(not(any(feature = "panic-semihosting", feature = "panic-itm")))]
 use panic_halt as _;
 #[cfg(feature = "panic-itm")]
 use panic_itm as _;
 #[cfg(feature = "panic-semihosting")]
 use panic_semihosting as _;
-use polynomial_2nd_order::Polynomial2ndOrder;
+use polynomial_2nd_degree::Polynomial2ndDegree;
 use rtc_source::RTCSource;
 use sdmmc::{BlockDevice, TimeSource, Volume};
 use stm32f1xx_hal::rcc::Clocks;
@@ -205,7 +206,7 @@ fn main() -> ! {
                 let b = Complex::from(f32::from_ne_bytes(b.to_ne_bytes()));
                 let c = C_RAW_VAL.load(Ordering::Relaxed);
                 let c = Complex::from(f32::from_ne_bytes(c.to_ne_bytes()));
-                Some(Polynomial2ndOrder::new(a, b, c))
+                Some(Polynomial2ndDegree::new(a, b, c))
             } else {
                 None
             }
@@ -224,11 +225,12 @@ fn main() -> ! {
 enum SolveResult {
     NoSolutions,
     InfinitelyMany,
-    Solved(Complex32, Complex32),
+    SolvedLinear(f32),
+    SolvedQuadratic(Complex32, Complex32),
 }
 
 #[cfg(not(feature = "analytical"))]
-fn solve(p: Polynomial2ndOrder<Complex32>) -> SolveResult {
+fn solve(p: Polynomial2ndDegree<Complex32>) -> SolveResult {
     const MAX_ITER: u32 = 100;
     const TOLERANCE_SQ: f32 = 1e-10; // square of the tolerance
     const STARTING_POINT: Complex32 = Complex { re: 1.0, im: 1.0 };
@@ -252,21 +254,30 @@ fn solve(p: Polynomial2ndOrder<Complex32>) -> SolveResult {
     if solved {
         let x1 = xi;
         let remaining_poly = p.reduce(x1);
-        let Polynomial2ndOrder { b: a, c: b, .. } = remaining_poly;
-        let x2 = -b / a;
-        SolveResult::Solved(x1, x2)
+        let Polynomial2ndDegree { b: a, c: b, .. } = remaining_poly;
+        if a.is_zero() {
+            // if a is zero the equation was b(x - x1) - a linear one
+            // because inputs must be real x1 is real too
+            SolveResult::SolvedLinear(x1.re)
+        } else {
+            let x2 = -b / a;
+            SolveResult::SolvedQuadratic(x1, x2)
+        }
     } else {
         SolveResult::NoSolutions
     }
 }
 
 #[cfg(feature = "analytical")]
-fn solve(p: Polynomial2ndOrder<Complex32>) -> SolveResult {
+fn solve(p: Polynomial2ndDegree<Complex32>) -> SolveResult {
     if p.infinitely_many_solutions() {
         return SolveResult::InfinitelyMany;
     }
     if p.equation_unsolvable() {
         return SolveResult::NoSolutions;
+    }
+    if p.a.is_zero() {
+        return SolveResult::SolvedLinear(-p.b.re / p.a.re);
     }
     let delta = p.b.powu(2) - p.a * p.c * 4.0;
     assert!(delta.im == 0.0);
@@ -277,7 +288,7 @@ fn solve(p: Polynomial2ndOrder<Complex32>) -> SolveResult {
     };
     let x1 = (-p.b + delta_sq) / (p.a * 2.0);
     let x2 = (-p.b - delta_sq) / (p.a * 2.0);
-    SolveResult::Solved(x1, x2)
+    SolveResult::SolvedQuadratic(x1, x2)
 }
 
 fn write_result(result: SolveResult, buffer: &mut DisplayBuffer) {
@@ -287,7 +298,8 @@ fn write_result(result: SolveResult, buffer: &mut DisplayBuffer) {
     match result {
         InfinitelyMany => write!(buffer, "Infinitely many solutions").unwrap(), // by pure luck the words wrap perfectly
         NoSolutions => write!(buffer, "No solutions").unwrap(),
-        Solved(x1, x2) => {
+        SolvedLinear(x) => write!(buffer, "{:.2}", x).unwrap(),
+        SolvedQuadratic(x1, x2) => {
             write!(buffer, "{:.2}", x1).unwrap();
             // Width is not supported without std https://github.com/rust-num/num-complex/blob/master/src/lib.rs#L1195-L1209
             buffer.set_cursor(16);
@@ -328,12 +340,12 @@ mod tests {
     use num::{Complex, One, Zero};
     use std::println;
 
-    use crate::{display_buffer::DisplayBuffer, polynomial_2nd_order::Polynomial2ndOrder, solve};
+    use crate::{display_buffer::DisplayBuffer, polynomial_2nd_degree::Polynomial2ndDegree, solve};
 
     #[test]
     fn solve_x2_m1() {
         let mut buff = DisplayBuffer::default();
-        let poly = Polynomial2ndOrder::<Complex<f32>>::new(
+        let poly = Polynomial2ndDegree::<Complex<f32>>::new(
             Complex::<f32>::one(),
             Complex::<f32>::zero(),
             -Complex::<f32>::one(),

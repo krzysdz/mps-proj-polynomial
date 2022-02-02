@@ -4,21 +4,21 @@ use core::ops::Mul;
 use num::{Complex, Num, Zero};
 
 #[derive(Debug, Clone, Copy)]
-pub struct Polynomial2ndOrder<T: Num + Copy> {
+pub struct Polynomial2ndDegree<T: Num + Copy> {
     pub a: T,
     pub b: T,
     pub c: T,
 }
 
-impl<T: Num + Copy> Polynomial2ndOrder<T> {
+impl<T: Num + Copy> Polynomial2ndDegree<T> {
     pub fn new(a: T, b: T, c: T) -> Self {
-        Polynomial2ndOrder { a, b, c }
+        Polynomial2ndDegree { a, b, c }
     }
 }
 
-impl<T: Num + Mul<f32, Output = T> + Copy> Polynomial2ndOrder<T> {
+impl<T: Num + Mul<f32, Output = T> + Copy> Polynomial2ndDegree<T> {
     pub fn derive(self) -> Self {
-        Polynomial2ndOrder {
+        Polynomial2ndDegree {
             a: T::zero(),
             b: T::mul(self.a, 2.0), /* self.a * 2.0*/
             c: self.b,
@@ -38,7 +38,7 @@ impl<T: Num + Mul<f32, Output = T> + Copy> Polynomial2ndOrder<T> {
     }
 }
 
-impl<T: Num + Copy + PartialOrd + From<f32>> Polynomial2ndOrder<Complex<T>> {
+impl<T: Num + Copy + PartialOrd + From<f32>> Polynomial2ndDegree<Complex<T>> {
     pub fn reduce(self, known_solution: Complex<T>) -> Self {
         let a = self.a;
         let b = self.b + a * known_solution;
@@ -47,7 +47,7 @@ impl<T: Num + Copy + PartialOrd + From<f32>> Polynomial2ndOrder<Complex<T>> {
             r.norm_sqr() < 1e-6.into(),
             "known_solution is not a solution"
         );
-        Polynomial2ndOrder {
+        Polynomial2ndDegree {
             a: Complex::<T>::zero(),
             b: a,
             c: b,
