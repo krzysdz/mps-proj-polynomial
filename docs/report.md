@@ -63,10 +63,10 @@ The project is based on the following suggestion from the projects list:
 
 ## Changes in the project assumptions
 
-Operations on integers do not make sense in case of a polynomial solver, so the basic type must be floating point. Because single precision is enough it was chosen as the base numeric type.\
+Operations on integers do not make sense in case of a polynomial solver, so the basic type must be floating point. Because single precision is enough, it was chosen as the base numeric type.\
 This decision has some drawbacks which make implementation of the project in the original version impossible.
 
-The following problems occured during the design process of the solution:
+The following problems occurred during the design process of the solution:
 
 - single precision IEEE 754 floating point requires 32-bits, while ports on AVR are 8-bit wide and 16-bit on STM32 line of microcontrollers
 - ATmega328P based Arduino boards which I could use do not have enough GPIO pins
@@ -74,16 +74,16 @@ The following problems occured during the design process of the solution:
 - variable number of solutions is a problem too, for an equation $ax^2 + bx + c = 0$ the following cases must be considered:
   - $a \ne 0$ - quadratic equation with two complex solutions (may be double)
   - $a = 0 \And b \ne 0$ - linear equation with a single real solution
-  - $a = 0 \And b = 0$ - there is no variable for which the equation can be solved, this leaves two opporunities:
+  - $a = 0 \And b = 0$ - there is no variable for which the equation can be solved, this leaves two possibilities:
     - $c = 0$ - the equality holds true for any value of $x$, because it does not depend on it
     - $c \ne 0$ - the equality is not satisfied regardless of the value of $x$
 
 The problem with number of pins on Arduino boards was avoided by using an [STM32F107](https://www.st.com/en/microcontrollers-microprocessors/stm32f107vc.html) based [STM32Butterfly2](https://kamami.pl/zestawy-uruchomieniowe-stm32/178507-stm32butterfly2.html) board.
-Although it is a huge improvement over Arduino boards, it still does not allow a parallel transfer of three 32-bit inputs. Theoretically with this MCU it should be possible to transfer three half precision floating point numbers using separate ports, but the board layout and built-in features make such solution impossible as there are *only* four 8-bin GPIO headers (10-pin, with GND and +3.3V). Finally the input is transferred in four reads. Every second 8 of the 32 bits of each of the three inputs are read from the respective pins (see [the next section](#solution-details) for details).
+Although it is a huge improvement over Arduino boards, it still does not allow a parallel transfer of three 32-bit inputs. Theoretically with this MCU it should be possible to transfer three half precision floating point numbers using separate ports, but the board layout and built-in features make such solution impossible as there are *only* four 8-bin GPIO headers (10-pin, with GND and +3.3V). Finally, the input is transferred in four reads. Every second 8 of the 32 bits of each of the three inputs are read from the respective pins (see [the next section](#solution-details) for details).
 
-The inital solution to the problem with possible outputs was use of an LCD display (16x2 was assumed). Parts of the code were written with a 16x2 display in mind, but, unfortunately, such display was not avilable during prototyping. Hopefully, the board had a feature which could be used instead - an SD card slot. Although the output couldn't be read immediately, the SD card was a good idea, since huge[^huge] amounts of data can be written to it and stored for a long time.
+The initial solution to the problem with possible outputs was to use an LCD display (16x2 was assumed). Parts of the code were written with a 16x2 display in mind, but, unfortunately, such display was not available during prototyping. Fortunately, the board had a feature which could be used instead - an SD card slot. Although the output couldn't be read immediately, the SD card was a good idea, since huge[^huge] amounts of data can be written to it and stored for a long time.
 
-[^huge]: Compared to 32 characters displayed on a 16x2 display even 512 MB is huge as it allows hundreds of milions characters to be stored.
+[^huge]: Compared to 32 characters displayed on a 16x2 display even 512 MB is huge, as it allows hundreds of millions characters to be stored.
 
 # Solution details
 
@@ -95,9 +95,9 @@ Input:
   - Con1 (PD0-PD7) - $a$
   - Con2 (PE0-PE7) - $b$
   - Con3 (PE8-PE15) - $c$
-- pin with highest number is the most significant bit of a byte
+- pin with the highest number is the most significant bit of a byte
 - helper script is described in [Appendix A](#python-helper)
-- pins are in pullup mode - logical 1 when floating, 0 shorted to ground
+- pins are in a pull-up mode - logical 1 when floating, 0 shorted to ground
 
 Signalling:
 
@@ -106,20 +106,20 @@ Signalling:
 
 Output:
 
-- the output is written to the SD card (card must be formatted using FAT filesystem and use MBR)
+- the output is written to the SD card (the card must be formatted using FAT filesystem and use MBR)
 - SD card is required for operation, if it is missing or does not work with SPI the core halts and requires reset
-- the output is formatted as if it was limited to two lines sixteen characters each
-- each solution spans two lines, it is possible that one of them is empty
+- the output is formatted as if it was limited to two sixteen-character lines
+- each solution spans two lines, one of which might be blank
 - solutions are separated with a blank line
 - the file date may be wrong, because the board is not equipped with a backup battery to power RTC when power is disconnected (V\textsubscript{BAT} is connected to +3.3 V line)
 
-The project is written in Rust, because why not.
+The project is written in Rust, because I wanted to practise programming in Rust and I have never used Rust for embedded systems.
 
 ![Photo of the STM32Butterfly2 board with a ZL30PRGv2-1 programmer and wires attached to pins used as input shorted to ground on a breadboard.](img/board_with_wires.jpg)
 
 ## Maths
 
-Quadratic equations can be solved analytically, but the analytical solution requires calculating square root, which is not implemented in the `core` crate. `f32::sqrt` software implementation is available in the [`libm`](https://github.com/rust-lang/libm) crate, which is used by the `num` crate if the project is built with the `anlaytical` feature.
+Quadratic equations can be solved analytically, but the analytical solution requires calculating square root, which is not implemented in the `core` crate. `f32::sqrt` software implementation is available in the [`libm`](https://github.com/rust-lang/libm) crate, which is used by the `num` crate if the project is built with the `analytical` feature.
 
 By default (without the `analytical` feature) the solver uses the Newton's method to find the first solution. To allow complex solutions, the starting point must have an imaginary component, so the algorithm starts with $x_0 = 1 + 1i$. Stop criterion is defined as $(|x_n - x_{n-1}|) < \epsilon^2$ with $\epsilon^2 = 1 \times 10^{-10}$. To make sure that the computations don't take too long, the loop is executed at most 100 times. Because of such numerical solution, the stop criterion might not be satisfied within the the allowed number of iterations and a solution might not be found.
 
@@ -150,13 +150,13 @@ The first step after starting the code is initialisation. During this stage:
 
 Main loop deals with the most important part of the project - actually solving the polynomial equations.
 
-Every loop execution the the code checks if the input data is ready. If it is, the polynomial roots are found as described in the [Maths](#maths) section. The results are then written as a string to a buffer which has two 16-character lines. The buffer is then copied with lines separated by a newline character to another buffer and two '\\n' characters are appended. The buffer with newline characters is then written to the SD card. After the content of the loop is executed (or skipped if the data was not ready), the [`wfi`](https://developer.arm.com/documentation/dui0552/a/the-cortex-m3-instruction-set/miscellaneous-instructions/wfi) instruction is executed to put the core into (light) sleep until an interrupt occurs.
+During every loop execution the code checks if the input data is ready. If it is, the polynomial roots are found as described in the [Maths](#maths) section. The results are then written as a string to a buffer which has two 16-character lines. The buffer is then copied with lines separated by a newline character to another buffer and two '\\n' characters are appended. The buffer with newline characters is then written to the SD card. After the content of the loop has been executed (or skipped if the data was not ready), the [`wfi`](https://developer.arm.com/documentation/dui0552/a/the-cortex-m3-instruction-set/miscellaneous-instructions/wfi) instruction is executed to put the core into (light) sleep until an interrupt occurs.
 
 ### SysTick
 
 Data is read from the input pins every time the SysTick timer reloads. On reload the SysTick exception handler is executed. The handler reads data from the GPIO pins and stores the bytes with an appropriate shift in the target variables. After reading the data, handler sets the LED state as described in [Details](#solution-details).
 
-**Note:** One second is too short interval to manually rewire the input. To increase the availabe time, a breakpoint in the handler can be set, or the interval can be changed to *n* second by changing the line:
+**Note:** One second is too short interval to manually rewire the input. To increase the available time, a breakpoint in the handler can be set, or the interval can be changed to *n* second by changing the line:
 
 ```rust
 syst.set_reload(clocks.sysclk().0 * n); // n seconds (core clock is 8 MHz)
@@ -169,15 +169,15 @@ This problem is solved in the project in the three following ways:
 
 #### Atomic variables
 
-*Simple* data, namely integer types (including `bool`, which really is `u8`) can be shared using static atomic variables. This assures that no modification can occur when another thread (in this case exception occuring during read) is reading/modifying the data. Atomic variables may also enforce memory ordering, but [`Relaxed`](https://en.cppreference.com/w/cpp/atomic/memory_order#Relaxed_ordering) is used, since in this case it probably does not matter.
+*Simple* data, namely integer types (including `bool`, which really is `u8`), can be shared using static atomic variables. This assures that no modification can occur when another thread (in this case exception occurring during read) is reading/modifying the data. Atomic variables may also enforce memory ordering, but [`Relaxed`](https://en.cppreference.com/w/cpp/atomic/memory_order#Relaxed_ordering) is used, since in this case it probably does not matter.
 
 This method is used for the `DATA_READY` flag, current byte number and the values collected so far (stored as u32, later reinterpreted as f32).
 
 #### `Mutex` guarded `Option`
 
-This method is used for one way moving of pins, but appropriate for sharing any data. Unlike atomic variables it does not allow specifying memory ordering. The type of the used `static` variable can be *decomposed* as:
+This method is used for one way moving of pins, but appropriate for sharing any data. Unlike atomic variables, it does not allow specifying memory ordering. The type of the used `static` variable can be *decomposed* as:
 
-1. [`cortex_m::Mutex`](https://docs.rs/cortex-m/latest/cortex_m/interrupt/struct.Mutex.html) - a reexported [`bare_metal::Mutex`](https://docs.rs/bare-metal/latest/bare_metal/struct.Mutex.html), allows exclusive access to its content for the duration of a [`CriticalSection`](https://docs.rs/bare-metal/latest/bare_metal/struct.CriticalSection.html). A `CriticalSection` can be obtained as a parameter of a closure executed by [`cortex_m::interrupt::free`](https://docs.rs/cortex-m/latest/cortex_m/interrupt/fn.free.html). Such mutex guarantees can be assured only on single-core systems, as `CriticalSection`s *protect* only from interrupts.
+1. [`cortex_m::Mutex`](https://docs.rs/cortex-m/latest/cortex_m/interrupt/struct.Mutex.html) - a re-exported [`bare_metal::Mutex`](https://docs.rs/bare-metal/latest/bare_metal/struct.Mutex.html), allows exclusive access to its content for the duration of a [`CriticalSection`](https://docs.rs/bare-metal/latest/bare_metal/struct.CriticalSection.html). A `CriticalSection` can be obtained as a parameter of a closure executed by [`cortex_m::interrupt::free`](https://docs.rs/cortex-m/latest/cortex_m/interrupt/fn.free.html). Such mutex guarantees can be assured only on single-core systems, as `CriticalSection`s *protect* only from interrupts.
 2. [`RefCell`](https://doc.rust-lang.org/core/cell/struct.RefCell.html) - allows mutable borrows checked at runtime. This is necessary, because access from interrupts cannot be checked at compile time. More details are available in the [Rust Book](https://doc.rust-lang.org/book/ch15-05-interior-mutability.html).
 3. [`Option`](https://doc.rust-lang.org/core/option/) - allows moving a value from and into it.
 4. The type which is moved between main context and interrupts.
@@ -186,7 +186,7 @@ In this project the static variables are created with `None` inside the `Option`
 
 #### Unchecked register access (sharing hardware)
 
-This approach is used only for the GPIO pins (`GPIOE` & `PD0-7`, see [Register-level GPIO access](#register-level-gpio-access)). It is impossible[^ptr-mem] to share real data this way, as it applies only to memory mapped hardware. Requires dereferencing pointers, therefore `unsafe` code, and is the most *unrusty* way of obtaining its goal.
+This approach is used only for the GPIO pins (`GPIOE` & `PD0-7`, see [Register-level GPIO access](#register-level-gpio-access)). It is impossible[^ptr-mem] to share real data this way, as it applies only to memory mapped hardware. It requires dereferencing pointers, therefore `unsafe` code, and is the most *unrusty* way of obtaining its goal.
 
 Instead of respecting the ownership rules, one may simply grab the relevant register block, dereference its pointer and read/write directly from/to registers or any other memory.
 
@@ -196,7 +196,7 @@ Instead of respecting the ownership rules, one may simply grab the relevant regi
 
 This is the *"bare metal"*[^bare-metal] part requested by MSc. Eng. Walichiewicz. Only pins used for $a$, $b$ and $c$ inputs (Port E and PD0-7) are handled this way. It can be divided into two sections - [Initialisation](#pin-initialisation) and [Reading](#reading-pins).
 
-[^bare-metal]: "Bare metal" phrase is avoided throught this report in favour of more precise descritptions, as, especially in the world of embedded Rust, "bare metal" usually means no operating system.
+[^bare-metal]: "Bare metal" phrase is avoided throughout this report in favour of more precise descriptions, as, especially in the world of embedded Rust, "bare metal" usually means no operating system.
 
 ### Pin initialisation
 
@@ -261,8 +261,8 @@ let porte = unsafe { (*GPIOE::PTR).idr.read().bits() };
 
 # Code
 
-The code is based on the [`cortex-m-quickstart` template](https://github.com/rust-embedded/cortex-m-quickstart) and contains multiple (unnecessary) comments with exaples for other Cortex-M boards/MCUs.
-Files which are not stricly necessary for the project to build (debugging configuration, etc.) are not included in the report.
+The code is based on the [`cortex-m-quickstart` template](https://github.com/rust-embedded/cortex-m-quickstart) and contains multiple (unnecessary) comments with examples for other Cortex-M boards/MCUs.
+Files which are not strictly necessary for the project to build (debugging configuration, etc.) are not included in the report.
 
 Full project can be found on GitHub [krzysdz/mps-proj-polynomial](https://github.com/krzysdz/mps-proj-polynomial). The code presented in this report is from commit [c0360807af](https://github.com/krzysdz/mps-proj-polynomial/tree/c0360807af33fb1fa73f96a6309f3f4d443bf74b).
 
